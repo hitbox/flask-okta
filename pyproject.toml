@@ -1,0 +1,8 @@
+[project]
+name = "flask_okta"
+version = "0.0.1"
+description = "Authenticate Flask with Okta"
+dependencies = [
+    "flask",
+    "flask-login",
+]
