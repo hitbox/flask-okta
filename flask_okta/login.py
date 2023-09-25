@@ -7,13 +7,19 @@ def default_login_manager(
     login_view,
     add_context_processor = True,
 ):
+    """
+    Default to flask-login.
+    """
     login_manager = LoginManager(
         add_context_processor = add_context_processor,
     )
 
     @login_manager.user_loader
     def load_user(user_id):
-        return OktaUser.get(user_id)
+        """
+        Load user from session or None.
+        """
+        return OktaUser.get_from_session(user_id)
 
     login_manager.login_view = login_view
 
