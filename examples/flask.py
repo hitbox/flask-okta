@@ -16,7 +16,6 @@ logging.basicConfig()
 requests_logger = logging.getLogger('urllib3')
 requests_logger.setLevel(logging.DEBUG)
 requests_logger.propagate = True
-requests_logger.info(requests.get('https://google.com'))
 
 app = Flask(__name__)
 app.config.from_pyfile('../instance/config.py')
