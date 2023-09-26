@@ -1,3 +1,4 @@
+from flask import current_app
 from flask import request
 from flask import url_for
 from markupsafe import Markup
@@ -24,6 +25,18 @@ def preview_redirect(auth_uri, query, url, code_verifier):
 
     test_callback_url = url_for('.test_callback', code=code_verifier, **query)
     html.append(f'<p><a href="{ test_callback_url }">Test callback</a></p>')
+
+    # link to introspection
+    introspect_url = current_app.config.get('OKTA_TOKEN_INTROSPECTION_URI')
+    if introspect_url:
+        html.append(
+            f'''<p><a href="{ introspect_url }">Introspect</a></p>'''
+        )
+    else:
+        html.append(
+            '<p>Set <code>OKTA_TOKEN_INTROSPECTION_URI</code>'
+            ' for link to introspection.</p>'
+        )
 
     # display data
     items_list = [
