@@ -67,6 +67,13 @@ def redirect_query(
 def get_okta_debug():
     return current_app.config.get('OKTA_DEBUG', False)
 
+def abort_for_debug():
+    """
+    Abort if not in debugging mode.
+    """
+    if not get_okta_debug():
+        abort(404)
+
 def abort_for_callback(code, state):
     """
     abort for invalid values from Okta.
@@ -123,9 +130,7 @@ def _init_routes(okta_bp, okta_redirect_rule):
         """
         Debugging callback to display faked Okta callback redirect.
         """
-        # abort for debugging not enabled
-        if not get_okta_debug():
-            abort(404)
+        abort_for_debug()
 
         # NOTE
         # - the code key was just passed back in as is.
