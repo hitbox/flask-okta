@@ -146,8 +146,10 @@ def _init_routes(okta_bp, okta_redirect_rule):
         """
         abort_for_debug()
 
-        response = requests.get(
-            current_app.config['OKTA_TOKEN_INTROSPECTION_URI'],
+        url = current_app.config['OKTA_TOKEN_INTROSPECTION_URI']
+
+        response = requests.post(
+            url,
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
