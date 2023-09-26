@@ -1,3 +1,4 @@
+*.swp
 .session
 __pycache__
 instance
