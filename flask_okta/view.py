@@ -145,7 +145,7 @@ def _init_routes(okta_bp, okta_redirect_rule):
         abort_for_callback(code, state)
 
         # post request for access token
-        exchange = requests.post(
+        exchange_response = requests.post(
             current_app.config['OKTA_TOKEN_URI'],
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -160,7 +160,9 @@ def _init_routes(okta_bp, okta_redirect_rule):
                 current_app.config['OKTA_CLIENT_ID'],
                 current_app.config['OKTA_CLIENT_SECRET'],
             ),
-        ).json()
+        )
+        exchange_response.raise_for_status()
+        exchange = exchange_response.json()
 
         if not exchange.get('token_type'):
             abort(403, 'Unsupported token type.')
@@ -168,12 +170,14 @@ def _init_routes(okta_bp, okta_redirect_rule):
         # authorization successful
         access_token = exchange['access_token']
 
-        userinfo = requests.get(
+        userinfo_response = requests.get(
             current_app.config['OKTA_USERINFO_URI'],
             headers = {
                 'Authorization': f'Bearer {access_token}',
             },
-        ).json()
+        )
+        userinfo_response.raise_for_status()
+        userinfo = userinfo_response.json()
 
         unique_id = userinfo['sub']
         user_email = userinfo['email']
