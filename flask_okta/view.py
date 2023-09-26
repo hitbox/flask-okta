@@ -7,6 +7,7 @@ import requests
 from flask import Blueprint
 from flask import abort
 from flask import current_app
+from flask import jsonify
 from flask import redirect
 from flask import request
 from flask import session
@@ -138,6 +139,26 @@ def _init_routes(okta_bp, okta_redirect_rule):
         state = request.args.get('state')
         abort_for_callback(code, state)
         return html.display_callback()
+
+    @okta_bp.route('/introspect')
+    def introspect():
+        """
+        """
+        abort_for_debug()
+
+        response = requests.get(
+            current_app.config['OKTA_TOKEN_INTROSPECTION_URI'],
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            auth = (
+                current_app.config['OKTA_CLIENT_ID'],
+                current_app.config['OKTA_CLIENT_SECRET'],
+            ),
+        )
+        response.raise_for_status()
+
+        return jsonify(response.json())
 
     @okta_bp.route(okta_redirect_rule)
     def authorization_code_callback():
