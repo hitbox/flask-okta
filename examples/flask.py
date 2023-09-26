@@ -18,7 +18,7 @@ requests_logger.setLevel(logging.DEBUG)
 requests_logger.propagate = True
 
 app = Flask(__name__)
-app.config.from_pyfile('../instance/config.py')
+app.config.from_envvar('FLASK_OKTA_EXAMPLE_CONFIG')
 
 okta = OktaManager(app, redirect_login_endpoint='hello')
 
