@@ -1,7 +1,5 @@
 import secrets
 
-from urllib.parse import urlencode
-
 import requests
 
 from flask import Blueprint
@@ -15,55 +13,11 @@ from flask import url_for
 from flask_login import login_user
 
 from . import html
-from .oath import generate_code_verifier
-from .oath import get_code_challenge
+from .okta import prepare_redirect_authentication
 from .user import OktaUser
 
 # TODO
 # - allow custom user class
-
-def redirect_query(
-    state,
-    code_verifier,
-    scope = 'openid email profile',
-    response_type = 'code',
-    response_mode = 'query',
-    code_challenge_method = 'S256',
-):
-    """
-    Create a dict of parameters required by Okta.
-
-    :param state:
-        random string for use by application.
-    :param code_verifier:
-        the cryptographically random string used to create the code challenge.
-    """
-    # NOTE
-    # - leaving room for growth with kwargs but nothing else is supported yet.
-    assert response_type == 'code', \
-        'Only response type "code" supported.'
-    assert response_mode == 'query', \
-        'Only response mode "query" supported.'
-    assert code_challenge_method == 'S256', \
-        'Only code challenge method "S256" supported.'
-
-    client_id = current_app.config['OKTA_CLIENT_ID']
-    client_secret = current_app.config['OKTA_CLIENT_SECRET']
-    redirect_uri = current_app.config['OKTA_REDIRECT_URI']
-
-    code_challenge = get_code_challenge(code_verifier)
-
-    query = dict(
-        client_id = client_id,
-        redirect_uri = redirect_uri,
-        response_type = response_type,
-        response_mode = response_mode,
-        scope = scope,
-        state = state,
-        code_challenge = code_challenge,
-        code_challenge_method = code_challenge_method,
-    )
-    return query
 
 def get_okta_debug():
     return current_app.config.get('OKTA_DEBUG', False)
@@ -103,6 +57,12 @@ def create_okta_blueprint(
 def _init_routes(okta_bp, okta_redirect_rule):
     """
     Add okta routes to blueprint.
+
+    :param okta_bp:
+        Flask blueprint to add routes to.
+    :param okta_redirect_rule:
+        URL Rule used by a view function to redirect to okta with
+        authentication query parameters.
     """
 
     @okta_bp.route('/login')
@@ -110,21 +70,13 @@ def _init_routes(okta_bp, okta_redirect_rule):
         """
         Redirect to Okta for authentication using configured values.
         """
-        state = secrets.token_hex()
-        code_verifier = generate_code_verifier()
-
-        session['OKTA_STATE'] = state
-        session['OKTA_CODE_VERIFIER'] = code_verifier
-
-        auth_uri = current_app.config['OKTA_AUTH_URI']
-        query = redirect_query(state, code_verifier)
-        url = f'{auth_uri}?{urlencode(query)}'
+        redirect_authentication = prepare_redirect_authentication()
 
         if get_okta_debug():
             # debugging preview before redirect with link to continue
-            return html.preview_redirect(auth_uri, query, url, code_verifier)
+            return html.preview_redirect(redirect_authentication)
 
-        return redirect(url)
+        return redirect(redirect_authentication.url)
 
     @okta_bp.route('/test-callback')
     def test_callback():
