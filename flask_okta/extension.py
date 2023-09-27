@@ -1,4 +1,3 @@
-from .login import default_login_manager
 from .view import create_okta_blueprint
 
 class OktaManager:
@@ -9,36 +8,45 @@ class OktaManager:
     def __init__(
         self,
         app = None,
-        login_manager = None,
-        redirect_login_endpoint = None,
+        login_userinfo = None,
         wrap_existing_views = False, # TODO!
     ):
-        self.redirect_login_endpoint = redirect_login_endpoint
+        self.login_userinfo = login_userinfo
         if app is not None:
-            self.init_app(app, login_manager)
+            self.init_app(app)
 
     def init_app(
         self,
         app,
-        login_manager = None,
-        redirect_login_endpoint = None,
+        login_userinfo = None,
     ):
+        """
+        Redirect authentication for Flask and Okta.
+
+        :param login_userinfo:
+            Callable receiving userinfo data from Okta. Taken from here,
+            OktaManager initialization, or configuration, OKTA_LOGIN_USERINFO.
+        """
         if 'okta' in app.extensions:
             raise RuntimeError('okta extension already registered.')
 
-        # resolve endpoint to redirect to after login, or raise
-        redirect_login_endpoint = (
-            redirect_login_endpoint
-            or
-            self.redirect_login_endpoint
-            or
-            app.config.get('OKTA_REDIRECT_LOGIN_ENDPOINT')
-        )
-        if not redirect_login_endpoint:
-            raise RuntimeError('Could not resolve redirect_login_endpoint.')
-        self.redirect_login_endpoint = redirect_login_endpoint
-
         app.extensions['okta'] = self
+
+        # resolve func to call for login, after getting userinfo
+        login_userinfo = (
+            login_userinfo
+            or
+            self.login_userinfo
+            or
+            app.config.get('OKTA_LOGIN_USERINFO')
+        )
+        # try to resolve from string
+        if isinstance(login_userinfo, str):
+            login_userinfo = eval(login_userinfo)
+
+        if not login_userinfo:
+            raise RuntimeError('Could not resolve login_userinfo function.')
+        self.login_userinfo = login_userinfo
 
         blueprint_name = app.config.setdefault(
             'OKTA_BLUEPRINT_NAME',
@@ -55,13 +63,8 @@ class OktaManager:
             '/authorization-code/callback'
         )
 
-        if login_manager is None:
-            login_manager = default_login_manager(
-                blueprint_name,
-                login_view = f'{blueprint_name}.login',
-            )
-            login_manager.init_app(app)
-
+        # a blueprint to handle redirecting to Okta and requesting data from
+        # Okta on the backend.
         okta_bp = create_okta_blueprint(
             blueprint_name,
             app.name,

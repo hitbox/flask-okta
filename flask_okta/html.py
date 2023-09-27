@@ -26,7 +26,7 @@ def preview_redirect(redirect_authentication):
     # link to test callback to bypass Okta for development
     test_callback_url = url_for(
         '.test_callback',
-        code = session['OKTA_CODE_VERIFIER'],
+        code = session['_okta_code_verifier'],
         **redirect_authentication.query,
     )
 
@@ -36,9 +36,23 @@ def preview_redirect(redirect_authentication):
     html.append(
         tag('nav',
             ''.join([
-                tag('a', 'Continue to Okta', href=redirect_authentication.url),
-                tag('a', 'Test callback', href=test_callback_url),
-                tag('a', 'Introspect', href=introspect_url),
+                tag(
+                    'a',
+                    'Continue to Okta',
+                    href = redirect_authentication.url,
+                    title = 'Signin with Okta and redirect back here.',
+                ),
+                tag(
+                    'a',
+                    'Test callback',
+                    href = test_callback_url,
+                    title = 'Bypass Okta for debugging.',
+                ),
+                tag(
+                    'a',
+                    'Introspect',
+                    href = introspect_url,
+                ),
             ])
         )
     )

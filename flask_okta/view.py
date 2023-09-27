@@ -1,5 +1,3 @@
-import secrets
-
 import requests
 
 from flask import Blueprint
@@ -13,11 +11,12 @@ from flask import url_for
 from flask_login import login_user
 
 from . import html
+from .okta import authenticated_userinfo
+from .okta import exchange_for_userinfo
 from .okta import prepare_redirect_authentication
-from .user import OktaUser
 
-# TODO
-# - allow custom user class
+def get_okta_extension():
+    return current_app.extensions['okta']
 
 def get_okta_debug():
     return current_app.config.get('OKTA_DEBUG', False)
@@ -36,7 +35,7 @@ def abort_for_callback(code, state):
     if not code:
         abort(403, 'code not returned')
 
-    if state != session['OKTA_STATE']:
+    if state != session['_okta_state']:
         abort(400, f'states do not match.')
 
 def create_okta_blueprint(
@@ -65,8 +64,8 @@ def _init_routes(okta_bp, okta_redirect_rule):
         authentication query parameters.
     """
 
-    @okta_bp.route('/login')
-    def login():
+    @okta_bp.route('/redirect-for-okta-login')
+    def redirect_for_okta_login():
         """
         Redirect to Okta for authentication using configured values.
         """
@@ -78,19 +77,33 @@ def _init_routes(okta_bp, okta_redirect_rule):
 
         return redirect(redirect_authentication.url)
 
-    @okta_bp.route('/test-callback')
-    def test_callback():
+    @okta_bp.route(okta_redirect_rule)
+    def authorization_code_callback():
         """
-        Debugging callback to display faked Okta callback redirect.
+        Check response from Okta and use access token to login a user.
         """
-        abort_for_debug()
-
-        # NOTE
-        # - the code key was just passed back in as is.
+        # code and state from url query args
         code = request.args.get('code')
         state = request.args.get('state')
+        # validate
         abort_for_callback(code, state)
-        return html.display_callback()
+        # backend exchange process for userinfo
+        userinfo = exchange_for_userinfo(code, state)
+        # callback to code using this extension for logging in user from
+        # userinfo data
+        okta = get_okta_extension()
+        return okta.login_userinfo(userinfo)
+
+    @okta_bp.route('/userinfo')
+    def userinfo():
+        """
+        Debugging userinfo endpoint.
+        """
+        # guessing this is not normally presented to the user
+        # trying to find where to get the id_token for the okta logout endpoint
+        abort_for_debug()
+        userinfo = authenticated_userinfo()
+        return jsonify(userinfo)
 
     @okta_bp.route('/introspect')
     def introspect():
@@ -119,70 +132,16 @@ def _init_routes(okta_bp, okta_redirect_rule):
 
         return jsonify(response.json())
 
-    @okta_bp.route(okta_redirect_rule)
-    def authorization_code_callback():
+    @okta_bp.route('/test-callback')
+    def test_callback():
         """
-        Check response from Okta and use access token to login a user.
+        Debugging callback to display faked Okta callback redirect.
         """
+        abort_for_debug()
+
+        # NOTE
+        # - the code key was just passed back in as is.
         code = request.args.get('code')
         state = request.args.get('state')
-
         abort_for_callback(code, state)
-
-        # post request for access token
-        exchange_response = requests.post(
-            current_app.config['OKTA_TOKEN_URI'],
-            headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            data = dict(
-                grant_type = 'authorization_code',
-                code = code,
-                redirect_uri = request.base_url,
-                code_verifier = session['OKTA_CODE_VERIFIER'],
-            ),
-            auth = (
-                current_app.config['OKTA_CLIENT_ID'],
-                current_app.config['OKTA_CLIENT_SECRET'],
-            ),
-        )
-        exchange_response.raise_for_status()
-        exchange = exchange_response.json()
-
-        if not exchange.get('token_type'):
-            abort(403, 'Unsupported token type.')
-
-        # authorization successful
-        access_token = exchange['access_token']
-
-        # docs don't show saving this anywhere but it is necessary for other endpoints
-        session['OKTA_ACCESS_TOKEN'] = access_token
-
-        userinfo_response = requests.get(
-            current_app.config['OKTA_USERINFO_URI'],
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-            },
-        )
-        userinfo_response.raise_for_status()
-
-        userinfo = userinfo_response.json()
-        unique_id = userinfo['sub']
-        user_email = userinfo['email']
-        user_name = userinfo['given_name']
-
-        user = OktaUser(
-            id = unique_id,
-            email = user_email,
-            name = user_name,
-        )
-        user.create(user.id, user.email, user.name)
-
-        login_user(user)
-
-        # XXX
-        # Okta probably provides a "next" argument? Or, one is passed through
-        # from flask-login?
-        okta = current_app.extensions['okta']
-        url = url_for(okta.redirect_login_endpoint)
-        return redirect(url)
+        return html.display_callback()

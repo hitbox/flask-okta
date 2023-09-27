@@ -2,14 +2,18 @@ import secrets
 
 from urllib.parse import urlencode
 
+import requests
+
+from flask import abort
 from flask import current_app
+from flask import request
 from flask import session
 
-from .oath import generate_code_verifier
-from .oath import generate_state_token
-from .oath import get_code_challenge
+from .oauth import generate_code_verifier
+from .oauth import generate_state_token
+from .oauth import get_code_challenge
 
-# Required Query Parameters:
+# Required Query Parameters for /authenticate:
 
 # - client_id
 # - redirect_uri
@@ -21,7 +25,7 @@ from .oath import get_code_challenge
 #   - "openid" is required
 #   - profile, email, address, phone, offline_access, groups
 # - state
-#   - a value return in token for application use
+#   - a value returned in token for application use
 
 class RedirectAuthentication:
     """
@@ -48,7 +52,8 @@ def prepare_redirect_authentication(
     code_challenge_method = 'S256',
 ):
     """
-    Prepare session and return object with url for redirect authentication.
+    Prepare session and return object with url for redirect authentication with
+    query parameters.
     """
     # NOTE
     # - leaving room for growth with kwargs but nothing else is supported yet.
@@ -64,8 +69,8 @@ def prepare_redirect_authentication(
     state = generate_state_token()
     code_verifier = generate_code_verifier()
 
-    session['OKTA_STATE'] = state
-    session['OKTA_CODE_VERIFIER'] = code_verifier
+    session['_okta_state'] = state
+    session['_okta_code_verifier'] = code_verifier
 
     client_id = current_app.config['OKTA_CLIENT_ID']
     client_secret = current_app.config['OKTA_CLIENT_SECRET']
@@ -86,3 +91,69 @@ def prepare_redirect_authentication(
 
     redirect_authentication = RedirectAuthentication(query_params)
     return redirect_authentication
+
+def post_for_access_code(code, state):
+    """
+    post request for access code after return from redirect authentication.
+    """
+    exchange_response = requests.post(
+        current_app.config['OKTA_TOKEN_URI'],
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        data = dict(
+            grant_type = 'authorization_code',
+            code = code,
+            redirect_uri = request.base_url,
+            code_verifier = session['_okta_code_verifier'],
+        ),
+        auth = (
+            current_app.config['OKTA_CLIENT_ID'],
+            current_app.config['OKTA_CLIENT_SECRET'],
+        ),
+    )
+    exchange_response.raise_for_status()
+    exchange = exchange_response.json()
+    return exchange
+
+def exchange_for_userinfo(code, state):
+    """
+    Post for access code and use it to get userinfo data.
+    """
+    # post request for access token
+    exchange = post_for_access_code(code, state)
+
+    if not exchange.get('token_type'):
+        abort(403, 'Unsupported token type.')
+
+    # authorization successful
+    access_token = exchange['access_token']
+
+    # docs don't show saving this anywhere but it is necessary for other endpoints
+    session['_okta_access_token'] = access_token
+
+    userinfo_response = requests.get(
+        current_app.config['OKTA_USERINFO_URI'],
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+        },
+    )
+    userinfo_response.raise_for_status()
+
+    userinfo = userinfo_response.json()
+    return userinfo
+
+def authenticated_userinfo():
+    """
+    User information from /userinfo for current authenticated user.
+    """
+    access_token = session['_okta_access_token']
+    userinfo_response = requests.get(
+        current_app.config['OKTA_USERINFO_URI'],
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+        },
+    )
+    userinfo_response.raise_for_status()
+    userinfo = userinfo_response.json()
+    return userinfo
