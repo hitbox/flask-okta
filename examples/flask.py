@@ -46,10 +46,7 @@ login_manager = LoginManager(app)
 # this is the default endpoint flask-okta for redirect to okta
 login_manager.login_view = 'okta.redirect_for_okta_login'
 
-okta = OktaManager(
-    app,
-    login_userinfo = lambda: login_userinfo,
-)
+okta = OktaManager(app)
 
 def login_userinfo(userinfo):
     """
@@ -67,6 +64,9 @@ def login_userinfo(userinfo):
     # redirect after login
     url = url_for('hello')
     return redirect(url)
+
+# TODO: better solution
+okta.login_userinfo = login_userinfo
 
 @login_manager.user_loader
 def user_loader(user_id):

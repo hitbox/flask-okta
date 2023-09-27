@@ -40,12 +40,6 @@ class OktaManager:
             or
             app.config.get('OKTA_LOGIN_USERINFO')
         )
-        # try to resolve from string
-        if isinstance(login_userinfo, str):
-            login_userinfo = eval(login_userinfo)
-
-        if not login_userinfo:
-            raise RuntimeError('Could not resolve login_userinfo function.')
         self.login_userinfo = login_userinfo
 
         blueprint_name = app.config.setdefault(
