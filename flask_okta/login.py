@@ -19,7 +19,7 @@ def default_login_manager(
         """
         Load user from session or None.
         """
-        return OktaUser.get_from_session(user_id)
+        return OktaUser.get(user_id)
 
     login_manager.login_view = login_view
 

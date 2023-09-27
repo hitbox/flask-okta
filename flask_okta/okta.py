@@ -6,6 +6,7 @@ from flask import current_app
 from flask import session
 
 from .oath import generate_code_verifier
+from .oath import generate_state_token
 from .oath import get_code_challenge
 
 # Required Query Parameters:
@@ -60,7 +61,7 @@ def prepare_redirect_authentication(
     assert 'openid' in scope.split(), \
         '"openid" is required in scope list.'
 
-    state = secrets.token_hex()
+    state = generate_state_token()
     code_verifier = generate_code_verifier()
 
     session['OKTA_STATE'] = state

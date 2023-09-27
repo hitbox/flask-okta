@@ -1,6 +1,8 @@
 from flask import session
 from flask_login import UserMixin
 
+USERS = {}
+
 class OktaUser(UserMixin):
 
     def __init__(self, id, email, name):
@@ -13,6 +15,14 @@ class OktaUser(UserMixin):
         if 'OKTA_USERS' not in session:
             session['OKTA_USERS'] = {}
         return session['OKTA_USERS'].get(user_id)
+
+    @staticmethod
+    def get(user_id):
+        return USERS.get(user_id)
+
+    @staticmethod
+    def create(user_id, email, name):
+        USERS[user_id] = OktaUser(user_id, email, name)
 
     def update_session(self):
         """

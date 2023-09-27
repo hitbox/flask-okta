@@ -92,6 +92,15 @@ def _init_routes(okta_bp, okta_redirect_rule):
         abort_for_callback(code, state)
         return html.display_callback()
 
+    @okta_bp.route('/okta-session')
+    def okta_session():
+        # XXX DELETE
+        abort_for_debug()
+        from .html import dl_for_code
+        html = []
+        html.extend(dl_for_code(session.items()))
+        return str(''.join(html))
+
     @okta_bp.route('/introspect')
     def introspect():
         """
@@ -99,15 +108,20 @@ def _init_routes(okta_bp, okta_redirect_rule):
         abort_for_debug()
 
         url = current_app.config['OKTA_TOKEN_INTROSPECTION_URI']
+        client_secret = current_app.config['OKTA_CLIENT_SECRET']
+        client_id = current_app.config['OKTA_CLIENT_ID']
 
         response = requests.post(
             url,
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
+            data = dict(
+                client_id = client_id,
+            ),
             auth = (
-                current_app.config['OKTA_CLIENT_ID'],
-                current_app.config['OKTA_CLIENT_SECRET'],
+                client_id,
+                client_secret,
             ),
         )
         response.raise_for_status()
@@ -150,6 +164,9 @@ def _init_routes(okta_bp, okta_redirect_rule):
         # authorization successful
         access_token = exchange['access_token']
 
+        # docs don't show saving this anywhere but it is necessary for other endpoints
+        session['OKTA_ACCESS_TOKEN'] = access_token
+
         userinfo_response = requests.get(
             current_app.config['OKTA_USERINFO_URI'],
             headers = {
@@ -157,8 +174,8 @@ def _init_routes(okta_bp, okta_redirect_rule):
             },
         )
         userinfo_response.raise_for_status()
-        userinfo = userinfo_response.json()
 
+        userinfo = userinfo_response.json()
         unique_id = userinfo['sub']
         user_email = userinfo['email']
         user_name = userinfo['given_name']
@@ -168,7 +185,7 @@ def _init_routes(okta_bp, okta_redirect_rule):
             email = user_email,
             name = user_name,
         )
-        user.update_session()
+        user.create(user.id, user.email, user.name)
 
         login_user(user)
 

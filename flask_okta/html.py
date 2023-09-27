@@ -1,4 +1,5 @@
 from flask import current_app
+
 from flask import request
 from flask import session
 from flask import url_for
@@ -38,6 +39,7 @@ def preview_redirect(redirect_authentication):
                 tag('a', 'Continue to Okta', href=redirect_authentication.url),
                 tag('a', 'Test callback', href=test_callback_url),
                 tag('a', 'Introspect', href=introspect_url),
+                tag('a', 'Session', href=url_for('.okta_session')),
             ])
         )
     )
