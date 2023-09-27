@@ -39,7 +39,6 @@ def preview_redirect(redirect_authentication):
                 tag('a', 'Continue to Okta', href=redirect_authentication.url),
                 tag('a', 'Test callback', href=test_callback_url),
                 tag('a', 'Introspect', href=introspect_url),
-                tag('a', 'Session', href=url_for('.okta_session')),
             ])
         )
     )
