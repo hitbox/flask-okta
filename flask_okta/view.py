@@ -92,15 +92,6 @@ def _init_routes(okta_bp, okta_redirect_rule):
         abort_for_callback(code, state)
         return html.display_callback()
 
-    @okta_bp.route('/okta-session')
-    def okta_session():
-        # XXX DELETE
-        abort_for_debug()
-        from .html import dl_for_code
-        html = []
-        html.extend(dl_for_code(session.items()))
-        return str(''.join(html))
-
     @okta_bp.route('/introspect')
     def introspect():
         """
