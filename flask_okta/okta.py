@@ -38,21 +38,21 @@ RESERVED_SCOPES = set([
     'groups',
 ])
 
-class RedirectAuthentication:
+class OktaRedirect:
     """
     Convenience object for redirect authentication.
     """
 
-    def __init__(self, query):
+    def __init__(self, base_url, query):
+        self.base_url = base_url
         self.query = query
 
     @property
     def url(self):
         """
-        URL to Okta with query paramaters for redirect authentication.
+        URL to Okta with query paramaters for redirect operations.
         """
-        auth_uri = current_app.config['OKTA_AUTH_URI']
-        url = f'{ auth_uri }?{ urlencode(self.query) }'
+        url = f'{ self.base_url }?{ urlencode(self.query) }'
         return url
 
 
@@ -106,7 +106,8 @@ def prepare_redirect_authentication(
         code_challenge_method = code_challenge_method,
     )
 
-    redirect_authentication = RedirectAuthentication(query_params)
+    auth_uri = current_app.config['OKTA_AUTH_URI']
+    redirect_authentication = OktaRedirect(auth_uri, query_params)
     return redirect_authentication
 
 def prepare_for_logout_redirect(post_logout_redirect_uri=None):
@@ -132,8 +133,9 @@ def prepare_for_logout_redirect(post_logout_redirect_uri=None):
     if post_logout_redirect_uri:
         query_params['post_logout_redirect_uri'] = post_logout_redirect_uri
 
-    redirect_authentication = RedirectAuthentication(query_params)
-    return redirect_authentication
+    logout_uri = current_app.config['OKTA_LOGOUT_URI']
+    logout_redirect = OktaRedirect(logout_uri, query_params)
+    return logout_redirect
 
 def post_for_access_code(code, state):
     """
