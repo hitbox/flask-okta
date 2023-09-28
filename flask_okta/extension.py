@@ -82,7 +82,7 @@ class OktaManager:
         redirect_authentication = prepare_for_logout_redirect(
             post_logout_redirect_uri
         )
-        return redirect_authentication.url
+        return redirect_authentication
 
 
 class DashOktaManager(OktaManager):
