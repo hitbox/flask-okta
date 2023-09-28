@@ -27,6 +27,17 @@ from .oauth import get_code_challenge
 # - state
 #   - a value returned in token for application use
 
+# https://developer.okta.com/docs/reference/api/oidc/#reserved-scopes
+RESERVED_SCOPES = set([
+    'openid',
+    'profile',
+    'email',
+    'address',
+    'phone',
+    'offline_access',
+    'groups',
+])
+
 class RedirectAuthentication:
     """
     Convenience object for redirect authentication.
@@ -57,14 +68,20 @@ def prepare_redirect_authentication(
     """
     # NOTE
     # - leaving room for growth with kwargs but nothing else is supported yet.
+    # validate scope
+    scope_set = set(scope.split())
+    assert 'openid' in scope_set, \
+        'openid is required in scope.'
+    unknown_scopes = scope_set.difference(RESERVED_SCOPES)
+    assert not unknown_scopes, \
+        f'Unknown scope values { unknown_scopes }.'
+    # validate remaining:
     assert response_type == 'code', \
         'Only response type "code" supported.'
     assert response_mode == 'query', \
         'Only response mode "query" supported.'
     assert code_challenge_method == 'S256', \
         'Only code challenge method "S256" supported.'
-    assert 'openid' in scope.split(), \
-        '"openid" is required in scope list.'
 
     state = generate_state_token()
     code_verifier = generate_code_verifier()
@@ -88,6 +105,32 @@ def prepare_redirect_authentication(
         code_challenge = code_challenge,
         code_challenge_method = code_challenge_method,
     )
+
+    redirect_authentication = RedirectAuthentication(query_params)
+    return redirect_authentication
+
+def prepare_for_logout_redirect(post_logout_redirect_uri=None):
+    """
+    Prepare session and object with url to logout user in Okta.
+    """
+    state = generate_state_token()
+
+    session['_okta_state'] = state
+
+    client_id = current_app.config['OKTA_CLIENT_ID']
+
+    query_params = dict(
+        id_token_hint = session['_okta_id_token'],
+        state = state,
+    )
+
+    post_logout_redirect_uri = (
+        post_logout_redirect_uri
+        or
+        current_app.config.get('OKTA_POST_LOGOUT_REDIRECT_URI')
+    )
+    if post_logout_redirect_uri:
+        query_params['post_logout_redirect_uri'] = post_logout_redirect_uri
 
     redirect_authentication = RedirectAuthentication(query_params)
     return redirect_authentication
@@ -128,9 +171,11 @@ def exchange_for_userinfo(code, state):
 
     # authorization successful
     access_token = exchange['access_token']
+    id_token = exchange['id_token']
 
     # docs don't show saving this anywhere but it is necessary for other endpoints
     session['_okta_access_token'] = access_token
+    session['_okta_id_token'] = id_token
 
     userinfo_response = requests.get(
         current_app.config['OKTA_USERINFO_URI'],

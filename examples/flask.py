@@ -1,6 +1,7 @@
 import logging
 
 from flask import Flask
+from flask import jsonify
 from flask import redirect
 from flask import url_for
 from flask_login import LoginManager
@@ -65,7 +66,7 @@ def login_userinfo(userinfo):
     url = url_for('hello')
     return redirect(url)
 
-# TODO: better solution
+# TODO: a better solution for setting this before the function is defined.
 okta.login_userinfo = login_userinfo
 
 @login_manager.user_loader
@@ -74,14 +75,41 @@ def user_loader(user_id):
     # normally comes from a database of some kind
     return User.get(user_id)
 
+@app.route('/okta-logout')
+@login_required
+def okta_logout():
+    """
+    Logout of Okta and redirect back here to logout session user object.
+    """
+    logout_redirect = okta.get_logout_obj(
+        post_logout_redirect_uri = url_for(
+            'logout',
+            _external = True,
+        )
+    )
+    return redirect(logout_redirect.url)
+
 @app.route('/logout')
 @login_required
 def logout():
-    # TODO: logout of Okta?
+    """
+    Post Okta logout, logout our user object.
+    """
     logout_user()
     return redirect(url_for('hello'))
+
+@app.route('/userinfo')
+@login_required
+def userinfo():
+    """
+    Info from Okta about currently logged in user.
+    """
+    return jsonify(okta.userinfo())
 
 @app.route('/')
 @login_required
 def hello():
-    return f'Hello {current_user.name}!'
+    html = [f'<p>Hello {current_user.name}!</p>']
+    html.append(f'''<p><a href="{{ url_for('userinfo') }}">userinfo</a></p>''')
+    html.append(f'''<p><a href="{{ url_for('logout') }}">logout</a></p>''')
+    return ''.join(html)

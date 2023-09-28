@@ -75,7 +75,15 @@ def _init_routes(okta_bp, okta_redirect_rule):
             # debugging preview before redirect with link to continue
             return html.preview_redirect(redirect_authentication)
 
+        # if auth with Okta succeeds it will redirect
+        # to the callback view function
         return redirect(redirect_authentication.url)
+
+    @okta_bp.route('/redirect-for-okta-logout')
+    def redirect_for_okta_logout():
+        """
+        Logout redirect for Okta.
+        """
 
     @okta_bp.route(okta_redirect_rule)
     def authorization_code_callback():
