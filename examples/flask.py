@@ -82,22 +82,18 @@ def okta_logout():
     """
     Logout of Okta and redirect back here to logout session user object.
     """
-    logout_redirect = okta.get_logout_obj(
-        post_logout_redirect_uri = url_for(
-            'logout',
-            _external = True,
-        )
-    )
-    return redirect(logout_redirect.url)
-
-@app.route('/logout')
-@login_required
-def logout():
-    """
-    Post Okta logout, logout our user object.
-    """
+    # use flask-login to logout our use object
     logout_user()
-    return redirect(url_for('hello'))
+    # post_logout_redirect_uri must be configured in Okta to work
+    # provided as example, not used
+    # post_logout_redirect_uri = url_for(
+    #     'logout', # endpoint to our own app
+    #     _external = True, # flag to get full url
+    # )
+    # construct url and args to logout of Okta and redirect to it
+    # in this case we will not get redirect back to this example app
+    logout_redirect = okta.get_logout_obj()
+    return redirect(logout_redirect.url)
 
 @app.route('/userinfo')
 @login_required
