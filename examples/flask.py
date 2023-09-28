@@ -111,6 +111,6 @@ def userinfo():
 @login_required
 def hello():
     html = [f'<p>Hello {current_user.name}!</p>']
-    html.append(f'''<p><a href="{{ url_for('userinfo') }}">userinfo</a></p>''')
-    html.append(f'''<p><a href="{{ url_for('logout') }}">logout</a></p>''')
+    html.append(f'''<p><a href="{ url_for('userinfo') }">userinfo</a></p>''')
+    html.append(f'''<p><a href="{ url_for('logout') }">logout</a></p>''')
     return ''.join(html)
