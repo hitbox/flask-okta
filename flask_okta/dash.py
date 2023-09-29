@@ -1,3 +1,4 @@
+from flask import current_app
 from flask import redirect
 from flask import url_for
 from flask_login import LoginManager
@@ -102,6 +103,7 @@ def init_dash_for_okta(
             _external = True, # flag to get full url
         )
         # construct url and args to logout of Okta and redirect back here
+        okta = current_app.extensions['okta']
         okta_logout_redirect_url = okta.logout_url(post_logout_redirect_url)
         return redirect(okta_logout_redirect_url)
 
