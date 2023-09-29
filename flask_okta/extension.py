@@ -1,6 +1,8 @@
 from .okta import authenticated_userinfo
 from .okta import prepare_for_logout_redirect
 from .view import create_okta_blueprint
+from .wrappers import wrap_app_login_required
+from .wrappers import wrap_view_functions
 
 class OktaManager:
     """
@@ -10,22 +12,21 @@ class OktaManager:
     def __init__(
         self,
         app = None,
-        login_userinfo = None,
-        wrap_existing_views = False, # TODO!
+        after_authorization = None,
     ):
-        self.login_userinfo = login_userinfo
+        self._after_authorization = after_authorization
         if app is not None:
             self.init_app(app)
 
     def init_app(
         self,
         app,
-        login_userinfo = None,
+        after_authorization = None,
     ):
         """
         Redirect authentication for Flask and Okta.
 
-        :param login_userinfo:
+        :param after_authorization:
             Callable receiving userinfo data from Okta. Taken from here,
             OktaManager initialization, or configuration, OKTA_LOGIN_USERINFO.
         """
@@ -35,14 +36,14 @@ class OktaManager:
         app.extensions['okta'] = self
 
         # resolve func to call for login, after getting userinfo
-        login_userinfo = (
-            login_userinfo
+        after_authorization = (
+            after_authorization
             or
-            self.login_userinfo
+            self._after_authorization
             or
-            app.config.get('OKTA_LOGIN_USERINFO')
+            app.config.get('OKTA_AFTER_AUTHORIZATION')
         )
-        self.login_userinfo = login_userinfo
+        self._after_authorization = after_authorization
 
         blueprint_name = app.config.setdefault(
             'OKTA_BLUEPRINT_NAME',
@@ -67,6 +68,19 @@ class OktaManager:
             okta_redirect_rule,
         )
         app.register_blueprint(okta_bp)
+
+    # convenient functions to extension instances
+
+    wrap_view_functions = staticmethod(wrap_view_functions)
+
+    wrap_app_login_required = staticmethod(wrap_app_login_required)
+
+    def after_authorization(self, func):
+        """
+        Decorator to hook up callback for after Okta authorization.
+        """
+        self._after_authorization = func
+        return func
 
     def userinfo(self):
         """
