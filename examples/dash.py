@@ -4,6 +4,7 @@ from dash import Output
 from dash import dcc
 from dash import html
 from flask import current_app
+from flask import url_for
 from flask_login import current_user
 from flask_login import login_user
 
@@ -35,10 +36,13 @@ def update_output_div(input_value):
     passthrough = html.Div([
         html.Div(f'Output from server: {input_value}'),
     ])
-    return (
-        passthrough,
-        f'Hello { current_user.name }!',
-    )
+    user_section = html.Div([
+        html.P(f'Hello { current_user.name }!'),
+        html.P(
+            html.A('Logout', href=url_for('okta_logout')),
+        ),
+    ])
+    return (passthrough, user_section)
 
 # configure Flask extensions, flask-login and flask-okta, with the usual Flask
 # configuration machinery.
