@@ -65,21 +65,26 @@ def prepare_redirect_authentication(
     """
     Prepare session and return object with url for redirect authentication with
     query parameters.
+
+    :param scope:
+        space separated arguments for scope. defaults chosen from Okta example.
+    :param response_type:
+        default for redirect authentication.
+    :param response_mode:
+        default for redirect authentication.
+    :param code_challenge_method:
+        default from Okta docs.
     """
     # NOTE
     # - leaving room for growth with kwargs but nothing else is supported yet.
     # validate scope
     scope_set = set(scope.split())
-    assert 'openid' in scope_set, \
-        'openid is required in scope.'
+    assert 'openid' in scope_set, 'openid is required in scope.'
     unknown_scopes = scope_set.difference(RESERVED_SCOPES)
-    assert not unknown_scopes, \
-        f'Unknown scope values { unknown_scopes }.'
+    assert not unknown_scopes, f'Unknown scope values { unknown_scopes }.'
     # validate remaining:
-    assert response_type == 'code', \
-        'Only response type "code" supported.'
-    assert response_mode == 'query', \
-        'Only response mode "query" supported.'
+    assert response_type == 'code', 'Only response type "code" supported.'
+    assert response_mode == 'query', 'Only response mode "query" supported.'
     assert code_challenge_method == 'S256', \
         'Only code challenge method "S256" supported.'
 
@@ -113,18 +118,19 @@ def prepare_redirect_authentication(
 def prepare_for_logout_redirect(post_logout_redirect_uri=None):
     """
     Prepare session and object with url to logout user in Okta.
+
+    :param post_logout_redirect_uri:
+        URL to redirect back to application from Okta. If None, attempt to
+        lookup from config. See prepare_for_logout_redirect
     """
-    state = generate_state_token()
-
-    session['_okta_state'] = state
-
-    client_id = current_app.config['OKTA_CLIENT_ID']
+    state = session['_okta_state'] = generate_state_token()
 
     query_params = dict(
         id_token_hint = session['_okta_id_token'],
         state = state,
     )
 
+    # add post logout redirect to query params, if configured
     post_logout_redirect_uri = (
         post_logout_redirect_uri
         or

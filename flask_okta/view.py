@@ -42,6 +42,7 @@ def create_okta_blueprint(
     blueprint_name,
     import_name,
     okta_redirect_rule,
+    okta_post_logout_redirect_rule = None,
 ):
     """
     Blueprint to redirect for login and respond to callback.
@@ -50,18 +51,29 @@ def create_okta_blueprint(
         name = blueprint_name,
         import_name = import_name,
     )
-    _init_routes(okta_bp, okta_redirect_rule)
+    _init_routes(
+        okta_bp,
+        okta_redirect_rule,
+        okta_post_logout_redirect_rule,
+    )
     return okta_bp
 
-def _init_routes(okta_bp, okta_redirect_rule):
+def _init_routes(
+    okta_bp,
+    okta_redirect_rule,
+    okta_post_logout_redirect_rule = None,
+):
     """
     Add okta routes to blueprint.
 
     :param okta_bp:
         Flask blueprint to add routes to.
     :param okta_redirect_rule:
-        URL Rule used by a view function to redirect to okta with
-        authentication query parameters.
+        URL Rule for view function that redirects to okta with authentication
+        query parameters.
+    :param okta_post_logout_redirect_rule:
+         Optional URL rule for view function that responds to
+         post logout callback.
     """
 
     @okta_bp.route('/redirect-for-okta-login')
@@ -70,20 +82,15 @@ def _init_routes(okta_bp, okta_redirect_rule):
         Redirect to Okta for authentication using configured values.
         """
         redirect_authentication = prepare_redirect_authentication()
-
-        if get_okta_debug():
+        is_debug = get_okta_debug()
+        if is_debug:
             # debugging preview before redirect with link to continue
-            return html.preview_redirect(redirect_authentication)
-
-        # if auth with Okta succeeds it will redirect
-        # to the callback view function
-        return redirect(redirect_authentication.url)
-
-    @okta_bp.route('/redirect-for-okta-logout')
-    def redirect_for_okta_logout():
-        """
-        Logout redirect for Okta.
-        """
+            response = html.preview_redirect(redirect_authentication)
+        else:
+            # if auth with Okta succeeds it will redirect
+            # to the callback view function
+            response = redirect(redirect_authentication.url)
+        return response
 
     @okta_bp.route(okta_redirect_rule)
     def authorization_code_callback():
@@ -100,7 +107,7 @@ def _init_routes(okta_bp, okta_redirect_rule):
         # callback to code using this extension for logging in user from
         # userinfo data
         okta = get_okta_extension()
-        return okta.login_userinfo(userinfo)
+        return okta._after_authorization(userinfo)
 
     @okta_bp.route('/userinfo')
     def userinfo():
@@ -112,33 +119,6 @@ def _init_routes(okta_bp, okta_redirect_rule):
         abort_for_debug()
         userinfo = authenticated_userinfo()
         return jsonify(userinfo)
-
-    @okta_bp.route('/introspect')
-    def introspect():
-        """
-        """
-        abort_for_debug()
-
-        url = current_app.config['OKTA_TOKEN_INTROSPECTION_URI']
-        client_secret = current_app.config['OKTA_CLIENT_SECRET']
-        client_id = current_app.config['OKTA_CLIENT_ID']
-
-        response = requests.post(
-            url,
-            headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            data = dict(
-                client_id = client_id,
-            ),
-            auth = (
-                client_id,
-                client_secret,
-            ),
-        )
-        response.raise_for_status()
-
-        return jsonify(response.json())
 
     @okta_bp.route('/test-callback')
     def test_callback():

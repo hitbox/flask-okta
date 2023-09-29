@@ -10,17 +10,13 @@ def preview_redirect(redirect_authentication):
     """
     Debugging html preview before auth request.
     """
-    auth_uri = current_app.config['OKTA_AUTH_URI']
-
-    html = []
-
-    # styling
-    html.append('<style>')
+    # begin html list and styling
+    html = ['<style>']
     html.extend(dd_code_style())
     html.extend(nav_style())
     html.append('</style>')
 
-    html.append('<h1>Okta Debugging Mode On</h1>')
+    html.append(flask_okta_debugging_header())
     html.append('<h2>Preview Redirect</h2>')
 
     # link to test callback to bypass Okta for development
@@ -30,36 +26,24 @@ def preview_redirect(redirect_authentication):
         **redirect_authentication.query,
     )
 
-    # link to introspection
-    introspect_url = url_for('.introspect')
-
     html.append(
         tag('nav',
             ''.join([
-                tag(
-                    'a',
+                tag('a',
                     'Continue to Okta',
                     href = redirect_authentication.url,
                     title = 'Signin with Okta and redirect back here.',
                 ),
-                tag(
-                    'a',
+                tag('a',
                     'Test callback',
                     href = test_callback_url,
                     title = 'Bypass Okta for debugging.',
                 ),
-                tag(
-                    'a',
-                    'Introspect',
-                    href = introspect_url,
-                ),
-            ])
-        )
-    )
+            ])))
 
     # display data
     items_list = [
-        ('auth_uri', auth_uri),
+        ('auth_uri', current_app.config['OKTA_AUTH_URI']),
         ('url', redirect_authentication.url),
     ]
     items_list += redirect_authentication.query.items()
@@ -74,11 +58,14 @@ def display_callback():
     html.extend(dd_code_style())
     html.append('</style>')
 
-    html.append('<h1>Okta Debugging Mode On</h1>')
+    html.append(flask_okta_debugging_header())
     html.append('<h2>Success!</h2>')
     html.append('<p>Passed code and state checks.</p>')
     html.extend(dl_for_code(request.args.items()))
     return Markup(''.join(html))
+
+def flask_okta_debugging_header():
+    return '<h1>Flask-Okta Debugging Mode On</h1>'
 
 def clean_key(key):
     key = key.rstrip('_')
@@ -128,6 +115,12 @@ def nav_style():
     html = ['nav {']
     html.append('  display: flex;')
     html.append('  justify-content: space-between;')
-    html.append('  max-width: 500px;')
+    html.append('  width: min-content;')
+    html.append('}')
+    html.append('nav a {')
+    html.append('  white-space: nowrap;')
+    html.append('}')
+    html.append('nav a + a {')
+    html.append('  margin-left: 1rem;')
     html.append('}')
     return html

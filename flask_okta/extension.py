@@ -60,12 +60,20 @@ class OktaManager:
             '/authorization-code/callback'
         )
 
+        okta_post_logout_redirect_rule = app.config.setdefault(
+            'OKTA_POST_LOGOUT_REDIRECT_RULE',
+            '/Account/PostLogout',
+        )
+
+        self.post_logout_redirect_rule = okta_post_logout_redirect_rule
+
         # a blueprint to handle redirecting to Okta and requesting data from
         # Okta on the backend.
         okta_bp = create_okta_blueprint(
             blueprint_name,
             app.name,
             okta_redirect_rule,
+            okta_post_logout_redirect_rule,
         )
         app.register_blueprint(okta_bp)
 
@@ -84,7 +92,7 @@ class OktaManager:
 
     def userinfo(self):
         """
-        Convenience function for extension instance.
+        Convenience function for extension instance to get Okta user info.
         """
         return authenticated_userinfo()
 
@@ -92,16 +100,19 @@ class OktaManager:
         """
         Prepare session and return object with query params and url for
         redirect logout.
+
+        :param post_logout_redirect_uri:
+            See `flask_okta.prepare_for_logout_redirect`
         """
-        redirect_authentication = prepare_for_logout_redirect(
+        logout_redirect = prepare_for_logout_redirect(
             post_logout_redirect_uri
         )
-        return redirect_authentication
+        return logout_redirect
 
-
-class DashOktaManager(OktaManager):
-    """
-    Dash specific Flask-Okta extension that by default adds
-    `login_manager.login_required` to existing view functions.
-    """
-    # TODO
+    def logout_url(self, post_logout_redirect_uri=None):
+        """
+        Convenient function on extension to prepare session and contruct the
+        url with arguments for logging out of Okta.
+        """
+        logout_redirect = self.get_logout_obj(post_logout_redirect_uri)
+        return logout_redirect.url

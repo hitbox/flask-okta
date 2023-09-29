@@ -5,34 +5,18 @@ from flask import jsonify
 from flask import redirect
 from flask import url_for
 from flask_login import LoginManager
-from flask_login import UserMixin
 from flask_login import current_user
 from flask_login import login_required
 from flask_login import login_user
 from flask_login import logout_user
 
 from flask_okta import OktaManager
-
-USERS = {}
-
-class User(UserMixin):
-    """
-    Simple dictionary-backed user model.
-    """
-
-    def __init__(self, id, email, name):
-        self.id = id
-        self.email = email
-        self.name = name
-
-    @staticmethod
-    def get(user_id):
-        return USERS.get(user_id)
-
+from flask_okta.dash import User
 
 # configure logging ASAP. before app creation preferred by Flask docs.
 logging.basicConfig()
 
+# get logging from `requests` backend transfers
 requests_logger = logging.getLogger('urllib3')
 requests_logger.setLevel(logging.DEBUG)
 requests_logger.propagate = True
@@ -50,31 +34,29 @@ login_manager.login_view = 'okta.redirect_for_okta_login'
 
 okta = OktaManager(app)
 
-def login_userinfo(userinfo):
+@login_manager.user_loader
+def user_loader(user_id):
+    # required for flask-login
+    # user objects normally come from a database of some kind
+    return User.get(user_id)
+
+@okta.after_authorization
+def after_authorization(userinfo):
     """
-    Return view func response after access token exchange and getting userinfo.
+    Callback after Okta authentication. Collect some user info into a User
+    instance and log the user object in with flask-login. Finally redirect to
+    the greeting endpoint.
     """
     user_id = userinfo['sub']
     user = User.get(user_id)
     if not user:
-        # create user
+        # create user taking some of the user info data from Okta
         user = User(user_id, userinfo['email'], userinfo['name'])
         # update "database"
         USERS[user_id] = user
+    # login our user object with flask-login
     login_user(user)
-
-    # redirect after login
-    url = url_for('hello')
-    return redirect(url)
-
-# TODO: a better solution for setting this before the function is defined.
-okta.login_userinfo = login_userinfo
-
-@login_manager.user_loader
-def user_loader(user_id):
-    # required for flask-login
-    # normally comes from a database of some kind
-    return User.get(user_id)
+    return redirect(url_for('hello'))
 
 @app.route('/okta-logout')
 @login_required
@@ -82,18 +64,28 @@ def okta_logout():
     """
     Logout of Okta and redirect back here to logout session user object.
     """
-    # use flask-login to logout our use object
+    # logout our user object with flask-login
     logout_user()
-    # post_logout_redirect_uri must be configured in Okta to work
-    # provided as example, not used
-    # post_logout_redirect_uri = url_for(
-    #     'logout', # endpoint to our own app
-    #     _external = True, # flag to get full url
-    # )
-    # construct url and args to logout of Okta and redirect to it
-    # in this case we will not get redirect back to this example app
-    logout_redirect = okta.get_logout_obj()
-    return redirect(logout_redirect.url)
+    # logout of Okta
+    # post_logout_redirect_uri must also be configured in Okta to work
+    post_logout_redirect_url = url_for(
+        'post_okta_logout', # endpoint to our own app
+        _external = True, # flag to get full url
+    )
+    # construct url and args to logout of Okta and redirect back here
+    okta_logout_redirect_url = okta.logout_url(post_logout_redirect_url)
+    return redirect(okta_logout_redirect_url)
+
+@app.route(okta.post_logout_redirect_rule)
+def post_okta_logout():
+    """
+    Okta redirects back here after logout, according to
+    post_logout_redirect_rule. OKTA_POST_LOGOUT_REDIRECT_URI in config. This
+    attribute is set to a reasonable default if not specified.
+    """
+    # simple example just goes back to the hello endpoint which requires login,
+    # which means it will redirect to the login page we set up.
+    return redirect(url_for('hello'))
 
 @app.route('/userinfo')
 @login_required
@@ -106,6 +98,9 @@ def userinfo():
 @app.route('/')
 @login_required
 def hello():
+    """
+    Greeting and link to user information and logout.
+    """
     html = [f'<p>Hello {current_user.name}!</p>']
     html.append(f'''<p><a href="{ url_for('userinfo') }">userinfo</a></p>''')
     html.append(f'''<p><a href="{ url_for('okta_logout') }">logout</a></p>''')
